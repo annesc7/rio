@@ -10,9 +10,9 @@ from datetime import datetime
 from roboflow import Roboflow 
 
 # --- CONFIGURAÇÕES ---
-API_KEY = "n1oHzk5lt38xT2nDjhog"
-PROJECT_ID = "water-detection-log4w-dcamk"
-URL_CAPTURE = "http://10.190.87.217/capture"  # URL da ESP32-CAM
+API_KEY = "sua-chave-api-roboflow"
+PROJECT_ID = "seu-projeto-id-roboflow"
+URL_CAPTURE = "http://<endereco-da-esp32-cam>/capture"  # URL da ESP32-CAM
 PASTA = r"C:\monitoramento_rio"
 INTERVALO = 180 
 
