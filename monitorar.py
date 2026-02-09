@@ -8,13 +8,23 @@ from io import BytesIO
 from PIL import Image
 from datetime import datetime 
 from roboflow import Roboflow 
+import logging
 
 # --- CONFIGURAÇÕES ---
-API_KEY = "n1oHzk5lt38xT2nDjhog"
-PROJECT_ID = "water-detection-log4w-dcamk"
-URL_CAPTURE = "http://10.190.87.217/capture"  # URL da ESP32-CAM
+API_KEY = "sua-chave-api-roboflow"
+PROJECT_ID = "seu-projeto-id-roboflow"
+URL_CAPTURE = "http://<endereco-da-esp32-cam>/capture"  # URL da ESP32-CAM
 PASTA = r"C:\monitoramento_rio"
 INTERVALO = 180 
+
+logging .basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("monitoramento.log"),
+        logging.StreamHandler()
+    ]
+)
 
 os.makedirs(PASTA, exist_ok=True)
 
@@ -34,7 +44,8 @@ nivel_anterior = None
 while True:
     try:
         agora = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        print(f"\n[{agora}] Capturando...")
+        
+        logging.info(f"\n[{agora}] Capturando...")
 
         # 1. Captura da ESP32
         resp = requests.get(URL_CAPTURE, timeout=35)
@@ -65,7 +76,7 @@ while True:
                 if diff > 0.5: status = "ENCHENDO"
                 elif diff < -0.5: status = "BAIXANDO"
             
-            print(f"🌊 Nível: {nivel_atual:.2f}% | Status: {status}")
+            logging.info(f"🌊 Nível: {nivel_atual:.2f}% | Status: {status}")
             
             # 5. Salva Máscara Visual
             vis_mask = np.where((mask_array == 1) | (mask_array == 2), 255, 0).astype(np.uint8)
@@ -74,6 +85,6 @@ while True:
             nivel_anterior = nivel_atual
             
     except Exception as e:
-        print(f"❌ Erro: {e}")
+        logging.error(f" Erro: {e}")
 
     time.sleep(INTERVALO)
