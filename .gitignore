@@ -1,0 +1,31 @@
+# --- Sistema (Windows/macOS) ---
+desktop.ini
+Thumbs.db
+.DS_Store
+
+# --- Ambientes Virtuais (Essencial para não subir gigabytes inúteis) ---
+venv/
+.venv/
+env/
+ENV/
+bin/
+lib/
+include/
+
+# --- Cache do Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- VS Code e IDEs ---
+.vscode/
+.idea/
+*.swp
+
+# --- Logs e Dados Temporários ---
+*.log
+.cache/
+.tmp/
+dist/
+build/
+*.egg-info/
