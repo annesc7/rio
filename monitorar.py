@@ -4,20 +4,21 @@ import numpy as np
 import os 
 import time 
 import base64 
+import logging
 from io import BytesIO 
 from PIL import Image
 from datetime import datetime 
 from roboflow import Roboflow 
-import logging
 
 # --- CONFIGURAÇÕES ---
-API_KEY = "sua-chave-api-roboflow"
-PROJECT_ID = "seu-projeto-id-roboflow"
-URL_CAPTURE = "http://<endereco-da-esp32-cam>/capture"  # URL da ESP32-CAM
-PASTA = r"C:\monitoramento_rio"
+API_KEY = ""
+PROJECT_ID = ""
+URL_CAPTURE = " "
+PASTA = "monitoramento_rio" 
 INTERVALO = 180 
 
-logging .basicConfig(
+# Configuração de Logs
+logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
@@ -26,12 +27,19 @@ logging .basicConfig(
     ]
 )
 
-os.makedirs(PASTA, exist_ok=True)
+# Cria a pasta se não existir
+if not os.path.exists(PASTA):
+    os.makedirs(PASTA)
+    logging.info(f"Pasta {PASTA} criada.")
 
 # --- INICIALIZAÇÃO IA ---
-rf = Roboflow(api_key=API_KEY)
-project = rf.workspace().project(PROJECT_ID)
-model = project.version(2).model
+try:
+    rf = Roboflow(api_key=API_KEY)
+    project = rf.workspace().project(PROJECT_ID)
+    model = project.version(2).model
+    logging.info("Modelo Roboflow carregado com sucesso.")
+except Exception as e:
+    logging.error(f"Erro ao carregar modelo Roboflow: {e}")
 
 def decode_mask(mask_base64):
     """Converte Base64 para matriz NumPy para segmentação semântica"""
@@ -44,47 +52,66 @@ nivel_anterior = None
 while True:
     try:
         agora = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        
-        logging.info(f"\n[{agora}] Capturando...")
+        logging.info(f"Iniciando ciclo de captura: {agora}")
 
-        # 1. Captura da ESP32
+        # Captura da ESP32
         resp = requests.get(URL_CAPTURE, timeout=35)
         resp.raise_for_status()
         img_np = np.frombuffer(resp.content, dtype=np.uint8)
         frame = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
 
-        if frame is not None:
-            caminho_img = os.path.join(PASTA, f"{agora}.jpg")
-            cv2.imwrite(caminho_img, frame)
+        if frame is None:
+            logging.error("Falha ao decodificar imagem da ESP32.")
+            continue
 
-            # 2. IA e Decodificação da Máscara
-            results = model.predict(caminho_img)
-            json_data = results.json()
-            
-    
-            mask_base64 = json_data["predictions"][0]["segmentation_mask"]
-            mask_array = decode_mask(mask_base64)
+        # Salva a imagem original
+        caminho_img = os.path.join(PASTA, f"{agora}.jpg")
+        cv2.imwrite(caminho_img, frame)
+        logging.info(f"Imagem original salva: {caminho_img}")
 
-            # 3. Cálculo de Nível (Classes 1: River e 2: Water)
-            pixels_agua = np.sum((mask_array == 1) | (mask_array == 2))
-            nivel_atual = (pixels_agua / mask_array.size) * 100
+        # IA e Predição
+        results = model.predict(caminho_img)
+        json_data = results.json()
+        
+        # Verifica se há detecções
+        if "predictions" in json_data and len(json_data["predictions"]) > 0:
+            # Pega a primeira predição de segmentação
+            prediction = json_data["predictions"][0]
+            
+            if "segmentation_mask" in prediction:
+                mask_base64 = prediction["segmentation_mask"]
+                mask_array = decode_mask(mask_base64)
 
-            # 4. Lógica de Enchimento
-            status = "ESTÁVEL"
-            if nivel_anterior is not None:
-                diff = nivel_atual - nivel_anterior
-                if diff > 0.5: status = "ENCHENDO"
-                elif diff < -0.5: status = "BAIXANDO"
-            
-            logging.info(f"🌊 Nível: {nivel_atual:.2f}% | Status: {status}")
-            
-            # 5. Salva Máscara Visual
-            vis_mask = np.where((mask_array == 1) | (mask_array == 2), 255, 0).astype(np.uint8)
-            cv2.imwrite(os.path.join(PASTA, f"{agora}_MASK_{status}.png"), vis_mask)
-            
-            nivel_anterior = nivel_atual
-            
+                #  Cálculo de Nível (Classes 1: River e 2: Water)
+                pixels_agua = np.sum((mask_array == 1) | (mask_array == 2))
+                nivel_atual = (pixels_agua / mask_array.size) * 100
+
+                #  Lógica de Enchimento
+                status = "ESTÁVEL"
+                if nivel_anterior is not None:
+                    diff = nivel_atual - nivel_anterior
+                    if diff > 0.5: status = "ENCHENDO"
+                    elif diff < -0.5: status = "BAIXANDO"
+                
+                logging.info(f"Nível: {nivel_atual:.2f}% | Status: {status}")
+                
+                #  Salva Máscara Visual
+                # Cria imagem preta e branca (255 onde é água, 0 onde não é)
+                vis_mask = np.where((mask_array == 1) | (mask_array == 2), 255, 0).astype(np.uint8)
+                caminho_mask = os.path.join(PASTA, f"{agora}_MASK_{status}.png")
+                cv2.imwrite(caminho_mask, vis_mask)
+                logging.info(f"Máscara salva: {caminho_mask}")
+                
+                nivel_anterior = nivel_atual
+            else:
+                logging.warning("Predição feita, mas nenhuma máscara de segmentação encontrada.")
+        else:
+            logging.warning("A IA não detectou rio nesta imagem.")
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Erro de conexão com a ESP32: {e}")
     except Exception as e:
-        logging.error(f" Erro: {e}")
+        logging.error(f"Erro inesperado: {e}", exc_info=True)
 
+    logging.info(f"Aguardando {INTERVALO} segundos para a próxima captura")
     time.sleep(INTERVALO)
