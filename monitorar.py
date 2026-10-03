@@ -10,7 +10,7 @@ from PIL import Image
 from datetime import datetime 
 from roboflow import Roboflow 
 
-# --- CONFIGURAÇÕES ---
+#CONFIGURAÇÕES 
 API_KEY = ""
 PROJECT_ID = ""
 URL_CAPTURE = " "
@@ -32,7 +32,7 @@ if not os.path.exists(PASTA):
     os.makedirs(PASTA)
     logging.info(f"Pasta {PASTA} criada.")
 
-# --- INICIALIZAÇÃO IA ---
+#  INICIALIZAÇÃO IA 
 try:
     rf = Roboflow(api_key=API_KEY)
     project = rf.workspace().project(PROJECT_ID)
